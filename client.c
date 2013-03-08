@@ -54,19 +54,22 @@ SERVER_LIST_RESPONSE  GetServerList(){
 }
 
 int Login(){
+  int i=0;
   printf("Login...\n");
   CLIENT_REQUEST request;
   request.type = 5;
   request.client_msgid = ownMSG;
   char name[MAX_NAME_SIZE];
   printf("your login:\n");
-  fgets(name, MAX_NAME_SIZE, stdin);
-  strcpy(request.client_name, name);
-  SemOperation(sem_login_id, 0, -1);
+  fgets(name, MAX_NAME_SIZE, stdin); 
+  while(name[i] != '\n') i++; 
+  name[i] = '\0'; 
+  strcpy(request.client_name, name); printf("%s\n", name);
+  SemOperation(sem_login_id, 0, -1); 
   msgsnd(server_id, &request, sizeof(request) - sizeof(long), 0);
-  STATUS_RESPONSE response;
-  msgrcv(ownMSG, &response, sizeof(response) - sizeof(long), STATUS, 0);
-  SemOperation(sem_login_id, 0, 1);
+  STATUS_RESPONSE response; printf("x\n");
+  msgrcv(ownMSG, &response, sizeof(response) - sizeof(long), STATUS, 0); printf("x\n");
+  SemOperation(sem_login_id, 0, 1); printf("x\n");
   return response.status;
 }
 
@@ -143,7 +146,7 @@ PrivateText(){
   strcpy(word.from_name, name);
   char receiver[MAX_NAME_SIZE];
   printf("write receiver's name:\n");
-  gets(receiver);
+  fgets(receiver,  MAX_NAME_SIZE, NULL);
   strcpy(word.to, receiver);
   char your_text[MAX_MSG_SIZE];
   printf("write your private message:\n");
@@ -159,7 +162,7 @@ PublicText(){
   strcpy(word.from_name, name);
   char receiver[MAX_NAME_SIZE];
   printf("write receiver's name:\n");
-  gets(receiver);
+  fgets(receiver,  MAX_NAME_SIZE, NULL);
   strcpy(word.to, receiver);
   char your_text[MAX_MSG_SIZE];
   printf("write your public message:\n");
@@ -190,6 +193,7 @@ int main(){
   SERVER_LIST_RESPONSE res = GetServerList();
   
   server_id = res.servers[0];
+  printf("%d\n", server_id);
   sem_login_id = SemLoginInit();
   
   int login_res, change_res;

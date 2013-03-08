@@ -17,7 +17,7 @@ InitMSGs(){
   ownMSG = msgget(IPC_PRIVATE, 0600 | IPC_CREAT);
   servers_id = msgget(IPC_PRIVATE, 0600 | IPC_CREAT);
   servers_list_id = msgget(SERVER_LIST_MSG_KEY, 0600 | IPC_CREAT);
-  printf("%d\n", servers_list_id);
+  printf("%d\n", ownMSG);
 }
 
 SemOperation(int semid, int semnum, int x){
@@ -78,7 +78,7 @@ Register(){
   REPO *addr;
   int x;
   int id = semget(SEM_REPO, 1, 0666 | IPC_CREAT | IPC_EXCL);
-  printf("x\n");
+  
   //printf("%d\n", id);
   if(id == -1){ 
     sem_rep_id = semget(SEM_REPO, 1, 0666 );
@@ -86,14 +86,14 @@ Register(){
     SemOperation(sem_rep_id, 0, -1);
     shared_id = shmget(ID_REPO, sizeof(REPO), 0666);
     sem_log_id = semget(SEM_LOG, 1, 0666);
-    addr = (REPO*)shmat(shared_id, NULL, 0);printf("x1\n");
-    (*addr).active_servers = (*addr).active_servers + 1; printf("x1\n");
-    (*addr).servers[(*addr).active_servers - 1].client_msgid = ownMSG; printf("x1\n");
-    (*addr).servers[(*addr).active_servers - 1].server_msgid = servers_id; printf("x1\n");
-    (*addr).servers[(*addr).active_servers - 1].clients = 0; printf("x1\n");
+    addr = (REPO*)shmat(shared_id, NULL, 0);
+    (*addr).active_servers = (*addr).active_servers + 1; 
+    (*addr).servers[(*addr).active_servers - 1].client_msgid = ownMSG; 
+    (*addr).servers[(*addr).active_servers - 1].server_msgid = servers_id; 
+    (*addr).servers[(*addr).active_servers - 1].clients = 0; 
     SortServers(addr); printf("x1\n");
     shmdt(addr);  printf("x1\n");
-    SemOperation(sem_rep_id, 0, 1); printf("x1\n");
+    SemOperation(sem_rep_id, 0, 1); 
     
   }
   else{ printf("x2\n");
@@ -115,7 +115,7 @@ Register(){
     x = semctl(sem_rep_id, 0, GETVAL, x);
   }
   //semctl(sem_rep_id, 0, IPC_RMID, 0); printf("x\n");
-  printf("x\n");
+  
 }
 
 Unregister(){
@@ -168,38 +168,45 @@ SendServerList(){
 }
 
 LoginClient(){
-  int i;
+  int i, j=0, size;
   CLIENT_REQUEST req;
   STATUS_RESPONSE res;
   msgrcv(ownMSG, &req, sizeof(req) - sizeof(long), LOGIN, 0);
   res.type = STATUS;
   res.status = 0;
-  SemOperation(sem_rep_id, 0, -1);
+  SemOperation(sem_rep_id, 0, -1); 
   REPO* addr = (REPO*)shmat(shared_id, NULL, 0);
-  if((*addr).servers[ownMSG].clients == 17)
+  while((*addr).servers[j].client_msgid != ownMSG)
+    j++;
+  if((*addr).servers[j].clients == 17)
     res.status = 503;
-  else if(res.status == 0){
+  else if(res.status == 0){ 
       res.status = 400;
       for(i=0; i<MAX_NAME_SIZE; i++)
-	if(req.client_name[i] == '\0')
+	if(req.client_name[i] == '\0'){
 	  res.status = 0;
-      for(i=0; i<MAX_NAME_SIZE; i++)
-	if(isprint(req.client_name[i]) ==0)
-	  res.status = 400;
-    }
-    else if(res.status == 0){
-	for(i=0;i<(*addr).active_clients; i++)
-	  if(strcmp((*addr).clients[i].name, req.client_name) == 0)
-	    res.status = 409;
-      }
-      else if(res.status == 0){
-	  strcpy((*addr).clients[(*addr).active_clients].name, req.client_name);
-	  (*addr).clients[(*addr).active_clients].server_id = ownMSG;
-	  ++(*addr).active_clients;
-	  SortClients(addr);
-	  res.status = 201;
+	  size = i; 
+	  break;
 	}
-  msgsnd(req.client_msgid, &res, sizeof(res) - sizeof(long), 0);
+      for(i=0; i<size; i++)
+	if(isprint(req.client_name[i]) ==0){
+	  res.status = 400;
+	  printf("q9\n");
+	}
+    }
+  if(res.status == 0){ 
+    for(i=0;i<(*addr).active_clients; i++)
+      if(strcmp((*addr).clients[i].name, req.client_name) == 0)
+	res.status = 409;
+      }
+  if(res.status == 0){ 
+    strcpy((*addr).clients[(*addr).active_clients].name, req.client_name);
+    (*addr).clients[(*addr).active_clients].server_id = ownMSG;
+    ++(*addr).active_clients;
+    SortClients(addr);
+    res.status = 201;
+  } 
+  msgsnd(req.client_msgid, &res, sizeof(res) - sizeof(long), 0); 
   shmdt(addr);
   SemOperation(sem_rep_id, 0, 1);
 }
@@ -219,19 +226,23 @@ UnloginClient(int client_msgid){ //client_msgid == kolejka servera do komunikacj
 }
 
 int main(){
-  
+  int y=0;
   InitMSGs();
   Register();
   printf("shared %d\n", shared_id);
-  Unregister();/*
   if(fork() == 0)
     while(1)
       SendServerList();
   if(fork() == 0)
     while(1)
       LoginClient();
-  wait(NULL);
-  */
+  while(y == 0){
+    scanf("%d", &y);
+  }
+  Unregister();
+  
+  //wait(NULL);
+  
   return 0;
   
 }
