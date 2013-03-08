@@ -51,17 +51,25 @@ SortServers(REPO *addr){
 }
 
 SortClients(REPO *addr){
-  int i, j;
+  int i, j, server_id;
   char value[MAX_NAME_SIZE];
+  char room[MAX_NAME_SIZE];
  
     for(i = 1; i < (*addr).active_clients; i++)
     {
         strcpy(value, (*addr).clients[i].name);
+	strcpy(room, (*addr).clients[i].room);
+	server_id = (*addr).clients[i].server_id;
         for (j = i - 1; j >= 0 && ((strcmp((*addr).clients[j].name, value)) > 0); j--)
         {
             strcpy((*addr).clients[j + 1].name, (*addr).clients[j].name);
+	    strcpy((*addr).clients[j + 1].room, (*addr).clients[j].room);
+	    (*addr).clients[j+1].server_id = (*addr).clients[j].server_id;
         }
         strcpy((*addr).clients[j + 1].name, value);
+	strcpy((*addr).clients[j + 1].room, room);
+	(*addr).clients[j + 1].server_id = server_id;
+	
     }
 }
 
@@ -167,8 +175,25 @@ LoginClient(){
 	  res.status = 201;
 	}
   msgsnd(req.client_msgid, &res, sizeof(res) - sizeof(long), 0);
+  shmdt(addr);
+  SemOperation(sem_rep_id, 0, 1);
 }
-  
+
+UnloginClient(int client_msgid){ //client_msgid == kolejka servera do komunikacji z klientami
+  int i = 0,j;
+  SemOperation(sem_rep_id, 0, -1);
+  REPO* addr = (REPO*)shmat(shared_id, NULL, 0);
+  while((*addr).clients[i].server_id != client_msgid)
+    i++;
+  for(j=i;j<(*addr).active_clients-1;j++){
+    (*addr).clients[j].server_id = (*addr).clients[j+1].server_id;
+    strcpy((*addr).clients[j].name, (*addr).clients[j+1].name);
+    strcpy((*addr).clients[j].room, (*addr).clients[j+1].room);
+  }
+  --(*addr).active_clients;
+  shmdt(addr);
+  SemOperation(sem_rep_id, 0, 1);
+}
 
 int main(){
   
