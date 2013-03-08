@@ -17,6 +17,7 @@ InitMSGs(){
   ownMSG = msgget(IPC_PRIVATE, 0600 | IPC_CREAT);
   servers_id = msgget(IPC_PRIVATE, 0600 | IPC_CREAT);
   servers_list_id = msgget(SERVER_LIST_MSG_KEY, 0600 | IPC_CREAT);
+  printf("%d\n", servers_list_id);
 }
 
 SemOperation(int semid, int semnum, int x){
@@ -77,24 +78,25 @@ Register(){
   REPO *addr;
   int x;
   int id = semget(SEM_REPO, 1, 0666 | IPC_CREAT | IPC_EXCL);
+  printf("x\n");
   //printf("%d\n", id);
-  if(id == -1){
+  if(id == -1){ 
     sem_rep_id = semget(SEM_REPO, 1, 0666 );
     semctl(sem_rep_id, 0, GETVAL, x);
     SemOperation(sem_rep_id, 0, -1);
     shared_id = shmget(ID_REPO, sizeof(REPO), 0666);
     sem_log_id = semget(SEM_LOG, 1, 0666);
-    addr = (REPO*)shmat(shared_id, NULL, 0);
-    ++(*addr).active_servers;
-    (*addr).servers[(*addr).active_servers - 1].client_msgid = ownMSG;
-    (*addr).servers[(*addr).active_servers - 1].server_msgid = servers_id;
-    (*addr).servers[(*addr).active_servers - 1].clients = 0;
-    SortServers(addr);
-    shmdt(addr); 
-    SemOperation(sem_rep_id, 0, 1);
+    addr = (REPO*)shmat(shared_id, NULL, 0);printf("x1\n");
+    (*addr).active_servers = (*addr).active_servers + 1; printf("x1\n");
+    (*addr).servers[(*addr).active_servers - 1].client_msgid = ownMSG; printf("x1\n");
+    (*addr).servers[(*addr).active_servers - 1].server_msgid = servers_id; printf("x1\n");
+    (*addr).servers[(*addr).active_servers - 1].clients = 0; printf("x1\n");
+    SortServers(addr); printf("x1\n");
+    shmdt(addr);  printf("x1\n");
+    SemOperation(sem_rep_id, 0, 1); printf("x1\n");
     
   }
-  else{
+  else{ printf("x2\n");
     sem_rep_id = id;
     semctl(sem_rep_id, 0, SETVAL, 0);
     x = semctl(sem_rep_id, 0, GETVAL, x);
@@ -112,7 +114,8 @@ Register(){
     SemOperation(sem_rep_id, 0, 1);
     x = semctl(sem_rep_id, 0, GETVAL, x);
   }
-  //semctl(sem_rep_id, 0, IPC_RMID, 0);
+  //semctl(sem_rep_id, 0, IPC_RMID, 0); printf("x\n");
+  printf("x\n");
 }
 
 Unregister(){
@@ -128,16 +131,19 @@ Unregister(){
   for(j=i;j<(*addr).active_servers;j++){
     (*addr).servers[j].client_msgid = (*addr).servers[j+1].client_msgid;
     (*addr).servers[j].server_msgid = (*addr).servers[j+1].server_msgid;
-    (*addr).servers[j].clients = (*addr).servers[j+1].clients
+    (*addr).servers[j].clients = (*addr).servers[j+1].clients;
   }
   --(*addr).active_servers;
   if((*addr).active_servers == 0){
     shmdt(addr);
     shmctl(shared_id, IPC_RMID, NULL);
+    semctl(sem_log_id, 0, IPC_RMID, 0);
+    semctl(sem_rep_id, 0, IPC_RMID, 0);
   }
-  else
+  else{
     shmdt(addr);
-  SemOperation(sem_rep_id, 0, 1);
+    SemOperation(sem_rep_id, 0, 1);
+  }
 }
 
 CleanREPO(){
@@ -213,10 +219,11 @@ UnloginClient(int client_msgid){ //client_msgid == kolejka servera do komunikacj
 }
 
 int main(){
-  /*
+  
   InitMSGs();
   Register();
   printf("shared %d\n", shared_id);
+  Unregister();/*
   if(fork() == 0)
     while(1)
       SendServerList();
