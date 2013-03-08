@@ -116,8 +116,27 @@ Register(){
 }
 
 Unregister(){
+  int i = 0,j;
   SemOperation(sem_rep_id, 0, -1);
   REPO* addr = (REPO*)shmat(shared_id, NULL, 0);
+  while((*addr).servers[i].client_msgid != ownMSG)
+    i++;
+  while((*addr).servers[i].clients > 0)
+    UnloginClient(ownMSG);
+  msgctl((*addr).servers[i].client_msgid, IPC_RMID, NULL);
+  msgctl((*addr).servers[i].server_msgid, IPC_RMID, NULL);
+  for(j=i;j<(*addr).active_servers;j++){
+    (*addr).servers[j].client_msgid = (*addr).servers[j+1].client_msgid;
+    (*addr).servers[j].server_msgid = (*addr).servers[j+1].server_msgid;
+    (*addr).servers[j].clients = (*addr).servers[j+1].clients
+  }
+  --(*addr).active_servers;
+  if((*addr).active_servers == 0){
+    shmdt(addr);
+    shmctl(shared_id, IPC_RMID, NULL);
+  }
+  else
+    shmdt(addr);
   SemOperation(sem_rep_id, 0, 1);
 }
 
@@ -181,22 +200,20 @@ LoginClient(){
 
 UnloginClient(int client_msgid){ //client_msgid == kolejka servera do komunikacji z klientami
   int i = 0,j;
-  SemOperation(sem_rep_id, 0, -1);
   REPO* addr = (REPO*)shmat(shared_id, NULL, 0);
   while((*addr).clients[i].server_id != client_msgid)
     i++;
-  for(j=i;j<(*addr).active_clients-1;j++){
+  for(j=i;j<(*addr).active_clients;j++){
     (*addr).clients[j].server_id = (*addr).clients[j+1].server_id;
     strcpy((*addr).clients[j].name, (*addr).clients[j+1].name);
     strcpy((*addr).clients[j].room, (*addr).clients[j+1].room);
   }
   --(*addr).active_clients;
   shmdt(addr);
-  SemOperation(sem_rep_id, 0, 1);
 }
 
 int main(){
-  
+  /*
   InitMSGs();
   Register();
   printf("shared %d\n", shared_id);
@@ -207,7 +224,7 @@ int main(){
     while(1)
       LoginClient();
   wait(NULL);
-  
+  */
   return 0;
   
 }
