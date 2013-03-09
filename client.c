@@ -59,17 +59,16 @@ int Login(){
   CLIENT_REQUEST request;
   request.type = 5;
   request.client_msgid = ownMSG;
-  char name[MAX_NAME_SIZE];
   printf("your login:\n");
   fgets(name, MAX_NAME_SIZE, stdin); 
   while(name[i] != '\n') i++; 
   name[i] = '\0'; 
-  strcpy(request.client_name, name); printf("%s\n", name);
+  strcpy(request.client_name, name); 
   SemOperation(sem_login_id, 0, -1); 
   msgsnd(server_id, &request, sizeof(request) - sizeof(long), 0);
-  STATUS_RESPONSE response; printf("x\n");
-  msgrcv(ownMSG, &response, sizeof(response) - sizeof(long), STATUS, 0); printf("x\n");
-  SemOperation(sem_login_id, 0, 1); printf("x\n");
+  STATUS_RESPONSE response; 
+  msgrcv(ownMSG, &response, sizeof(response) - sizeof(long), STATUS, 0);  
+  SemOperation(sem_login_id, 0, 1);
   return response.status;
 }
 
@@ -92,6 +91,7 @@ Heartbeat(){
 }
 
 int ChangeRoom(){
+  int i=0;
   CHANGE_ROOM_REQUEST req;
   req.type = CHANGE_ROOM;
   req.client_msgid = ownMSG;
@@ -99,6 +99,8 @@ int ChangeRoom(){
   printf("new room name:\n");
   char room[MAX_NAME_SIZE];
   fgets(room, MAX_NAME_SIZE, stdin);
+  while(room[i] != '\n') i++; 
+  room[i] = '\0'; 
   strcpy(req.room_name, room);
   msgsnd(server_id, &req, sizeof(req) - sizeof(long), 0);
   STATUS_RESPONSE res;
@@ -109,11 +111,11 @@ int ChangeRoom(){
 ROOM_LIST_RESPONSE* GetRoomList(){
   CLIENT_REQUEST req;
   req.type = ROOM_LIST;
-  req.client_msgid = ownMSG;
+  req.client_msgid = ownMSG; printf("%s\n", name);
   strcpy(req.client_name, name);
-  msgsnd(server_id, &req, sizeof(req) - sizeof(long),  0);
+  msgsnd(server_id, &req, sizeof(req) - sizeof(long),  0); 
   ROOM_LIST_RESPONSE res;
-  msgrcv(ownMSG, &res, sizeof(res) - sizeof(long), ROOM_LIST, 0);
+  msgrcv(ownMSG, &res, sizeof(res) - sizeof(long), ROOM_LIST, 0); 
   
   return &res;
 }
@@ -129,13 +131,13 @@ CLIENT_LIST_RESPONSE* GetClientList(){
 }
 
 CLIENT_LIST_RESPONSE* GetGlobalClientList(){
-  CLIENT_REQUEST req;
+  CLIENT_REQUEST req; 
   req.type = GLOBAL_CLIENT_LIST;
   req.client_msgid = ownMSG;
   strcpy(req.client_name, name);
   msgsnd(server_id, &req, sizeof(req) - sizeof(long), 0);
   CLIENT_LIST_RESPONSE res;
-  msgrcv(ownMSG, &res, sizeof(res) - sizeof(long), GLOBAL_CLIENT_LIST, 0);
+  msgrcv(ownMSG, &res, sizeof(res) - sizeof(long), GLOBAL_CLIENT_LIST, 0); 
   return &res;
 }
 
@@ -188,8 +190,9 @@ ReceiveText(){
   
 int main(){
   
-  int i;
+  int i,j=0;
   ownMSG = OwnMSGInit();
+  printf("%d \n", ownMSG);
   SERVER_LIST_RESPONSE res = GetServerList();
   
   server_id = res.servers[0];
@@ -206,30 +209,34 @@ int main(){
 	printf("your name is uncorrect\n");
       else if(login_res == 409)
 	  printf("this name already exists\n");
-  printf("Login successful !\n");/*
+  printf("Login successful! Hello %s\n", name);
   printf("If you first time use this program it's reccomended to try /help\n");
-  int pid[2];
+  int pid[2];/*
   if(fork() == 0){
     pid[0] = getpid();
-    while(true)
+    while(1)
       Heartbeat();
   }
   if(fork() == 0){
-    pid[1] = getpid
-    while(true)
+    pid[1] = getpid;
+    while(1)
       ReceiveText();
-  }
+  }*/
   char line[MAX_MSG_SIZE];
-  while(true){
-    fgets(line,MAX_MSG_SIZE, NULL);
+  while(1){
+    printf(">>");
+    fgets(line,MAX_MSG_SIZE, stdin);
+    j = 0;
+    while(line[j] != '\n') j++; 
+    line[j] = '\0'; 
     if(strcmp(line, "/help") == 0)
-      printf("/users../gusurs../priv../logout../rooms../change..\n");
-    else if(strcmp(line, "/users") == 0){
+      printf("/users../gusers../priv../logout../rooms../change..\n");
+    else if(strcmp(line, "/users") == 0){ 
 	CLIENT_LIST_RESPONSE* res = GetClientList();
 	for(i=0; i<res->active_clients; i++)
 	  printf("%s\n", res->names[i]);
       }
-      else if(strcmp(line, "/gusers") == 0){
+      else if(strcmp(line, "/gusers") == 0){ printf("gusers\n");
 	  CLIENT_LIST_RESPONSE* res = GetGlobalClientList();
 	  for(i=0; i<res->active_clients; i++)
 	    printf("%s\n", res->names[i]);
@@ -237,22 +244,22 @@ int main(){
 	else if(strcmp(line, "/priv") == 0)
 	    PrivateText();
 	  else if(strcmp(line, "/logout") == 0){
-	      logout();
+	      Logout();
 	      kill(pid[0], 9); kill(pid[1], 9);
 	    }
 	    else if(strcmp(line, "/rooms") == 0){
-		ROOM_LIST_RESPONSE* res GetRoomList();
+		ROOM_LIST_RESPONSE* res = GetRoomList();
 		for(i=0; i<res->active_rooms; i++)
-		  printf("%s\n", res->rooms[i]);
+		  printf("%s\n", res->rooms[i].name);
 	      }
-	      else if((strcmp(line, "/change") == 0){
+	      else if( (strcmp(line, "/change") == 0) ){
 		  while(ChangeRoom() != 202)
 		    printf("invalid room name\n");
-		  printf("room change successful"\n);
+		  printf("room change successful\n");
 		}
 		else
 		  PublicText();
   }
-  */
+  
   return 0;
 }
