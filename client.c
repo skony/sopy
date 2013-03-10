@@ -13,6 +13,7 @@
 int ownMSG, server_id;
 char name[MAX_NAME_SIZE];
 int sem_login_id;
+char my_room[MAX_NAME_SIZE];
 
 static struct sembuf buf;
 
@@ -97,11 +98,10 @@ int ChangeRoom(){
   req.client_msgid = ownMSG;
   strcpy(req.client_name, name);
   printf("new room name:\n");
-  char room[MAX_NAME_SIZE];
-  fgets(room, MAX_NAME_SIZE, stdin);
-  while(room[i] != '\n') i++; 
-  room[i] = '\0'; 
-  strcpy(req.room_name, room);
+  fgets(my_room, MAX_NAME_SIZE, stdin);
+  while(my_room[i] != '\n') i++; 
+  my_room[i] = '\0'; 
+  strcpy(req.room_name, my_room);
   msgsnd(server_id, &req, sizeof(req) - sizeof(long), 0);
   STATUS_RESPONSE res;
   msgrcv(ownMSG, &res, sizeof(res) - sizeof(long), CHANGE_ROOM, 0);
@@ -111,7 +111,7 @@ int ChangeRoom(){
 ROOM_LIST_RESPONSE* GetRoomList(){
   CLIENT_REQUEST req;
   req.type = ROOM_LIST;
-  req.client_msgid = ownMSG; printf("%s\n", name);
+  req.client_msgid = ownMSG;
   strcpy(req.client_name, name);
   msgsnd(server_id, &req, sizeof(req) - sizeof(long),  0); 
   ROOM_LIST_RESPONSE res;
@@ -157,25 +157,19 @@ PrivateText(){
   msgsnd(server_id, &word, sizeof(word), 0);
 }
 
-PublicText(){
+PublicText(char line[MAX_MSG_SIZE] ) {
   TEXT_MESSAGE word;
   word.type = PUBLIC;
   word.from_id = ownMSG;
   strcpy(word.from_name, name);
-  char receiver[MAX_NAME_SIZE];
-  printf("write receiver's name:\n");
-  fgets(receiver,  MAX_NAME_SIZE, NULL);
-  strcpy(word.to, receiver);
-  char your_text[MAX_MSG_SIZE];
-  printf("write your public message:\n");
-  fgets(your_text, MAX_MSG_SIZE, NULL);
-  strcpy(word.text, your_text);
-  msgsnd(server_id, &word, sizeof(word), 0);
+  strcpy(word.to, my_room);
+  strcpy(word.text, line);
+  msgsnd(server_id, &word, sizeof(word) - sizeof(long), 0);
 }
 
 ReceiveText(){
   TEXT_MESSAGE word;
-  msgrcv(ownMSG, &word, sizeof(word) - sizeof(long), PUBLIC | PRIVATE, 0);
+  msgrcv(ownMSG, &word, sizeof(word) - sizeof(long), PUBLIC || PRIVATE, 0);
   printf("%s", word.from_name);
   if(word.type == PUBLIC)
     printf("[public]");
@@ -236,7 +230,7 @@ int main(){
 	for(i=0; i<res->active_clients; i++)
 	  printf("%s\n", res->names[i]);
       }
-      else if(strcmp(line, "/gusers") == 0){ printf("gusers\n");
+      else if(strcmp(line, "/gusers") == 0){ 
 	  CLIENT_LIST_RESPONSE* res = GetGlobalClientList();
 	  for(i=0; i<res->active_clients; i++)
 	    printf("%s\n", res->names[i]);
@@ -258,7 +252,7 @@ int main(){
 		  printf("room change successful\n");
 		}
 		else
-		  PublicText();
+		  PublicText(line);
   }
   
   return 0;

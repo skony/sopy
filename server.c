@@ -10,14 +10,15 @@
 #include <sys/msg.h>
 #include <sys/shm.h>
 
-int ownMSG, servers_id, servers_list_id, sem_rep_id, sem_log_id, shared_id;
+int ownMSG, servers_id, servers_list_id, sem_rep_id, sem_log_id, shared_id, my_clients_num;
 static struct sembuf buf;
+int my_clients[SERVER_CAPACITY];
+char my_clients_rooms[MAX_NAME_SIZE][SERVER_CAPACITY];
 
 InitMSGs(){
   ownMSG = msgget(IPC_PRIVATE, 0600 | IPC_CREAT);
   servers_id = msgget(IPC_PRIVATE, 0600 | IPC_CREAT);
   servers_list_id = msgget(SERVER_LIST_MSG_KEY, 0600 | IPC_CREAT);
-  printf("%d \n", ownMSG);
 }
 
 SemOperation(int semid, int semnum, int x){
@@ -205,13 +206,15 @@ LoginClient(){
     SortClients(addr);
     res.status = 201;
   } 
-  msgsnd(req.client_msgid, &res, sizeof(res) - sizeof(long), 0); 
+  msgsnd(req.client_msgid, &res, sizeof(res) - sizeof(long), 0);
+  my_clients[my_clients_num] = req.client_msgid;
+  my_clients_num = my_clients_num + 1; 
   shmdt(addr);
   SemOperation(sem_rep_id, 0, 1);
 }
 
 UnloginClient(int client_msgid){ //client_msgid == kolejka servera do komunikacji z klientami
-  int i = 0,j;
+  int i = 0,j, position;
   REPO* addr = (REPO*)shmat(shared_id, NULL, 0);
   while((*addr).clients[i].server_id != client_msgid)
     i++;
@@ -221,6 +224,14 @@ UnloginClient(int client_msgid){ //client_msgid == kolejka servera do komunikacj
     strcpy((*addr).clients[j].room, (*addr).clients[j+1].room);
   }
   --(*addr).active_clients;
+  for(i=0; i<my_clients_num; i++)
+    if(my_clients[i] == client_msgid){
+      for(j=i; j<my_clients_num; j++)
+	my_clients[j] = my_clients[j+1];
+      for(j=i; j<my_clients_num; j++)
+	strcpy(my_clients_rooms[j], my_clients_rooms[j+1] );
+      //--my_clients_num;
+    }
   shmdt(addr);
 }
 
@@ -268,10 +279,10 @@ SendUsersOnRoomList(){
   res.type = ROOM_CLIENT_LIST;
   res.active_clients = 0;
   char room[MAX_NAME_SIZE];
-  while( strcmp( (*addr).clients[j].name, req.client_name) == 0) j++;
+  while( strcmp( (*addr).clients[j].name, req.client_name) != 0) j++;
   strcpy(room, (*addr).clients[j].room);
   for(i=0; i<(*addr).active_clients;i++)
-    if( strcmp( (*addr).clients[i].room, room) ){
+    if( strcmp( (*addr).clients[i].room, room) == 0){
       strcpy(res.names[k], (*addr).clients[i].name);
       k++;
       ++res.active_clients;
@@ -296,11 +307,10 @@ ChangeUserRoom(){
     size = i; 
     break;
   }
-  printf("%d\n", res.status);
  for(i=0; i<size; i++)
   if(isprint(req.room_name[i]) ==0){
     res.status = 400;
-  }printf("%d\n", res.status);
+  }
   if(res.status == 400)
     msgsnd(req.client_msgid, &res, sizeof(res) - sizeof(long), 0);
   else{
@@ -320,19 +330,40 @@ ChangeUserRoom(){
       strcpy( (*addr).rooms[ (*addr).active_rooms].name, req.room_name);
       (*addr).rooms[ (*addr).active_rooms].clients = 1;
       (*addr).active_rooms = 1;
+      for(i=0; i<(*addr).active_clients; i++)
+	if(strcmp(req.client_name, (*addr).clients[i].name) == 0)
+	  strcpy( (*addr).clients[i].room, req.room_name);
     }
     res.status = 202;
     msgsnd(req.client_msgid, &res, sizeof(res) - sizeof(long), 0);
+    for(i=0; i<my_clients_num; i++)
+      if(req.client_msgid == my_clients[i] )
+	strcpy(my_clients_rooms[i], req.room_name);
   }
   shmdt(addr);
   SemOperation(sem_rep_id, 0, 1);
 }
 
+PublicText(){
+  int i; printf("%d\n", my_clients_num);
+  TEXT_MESSAGE word;
+  STATUS_RESPONSE res;
+  msgrcv(ownMSG, &word, sizeof(word) - sizeof(long), PUBLIC, 0); printf("%d\n",my_clients_num);
+  word.from_id = 0; 
+  for(i=0;i<my_clients_num;i++){
+    printf("%s\n", my_clients_rooms[i]);
+    if(strcmp(word.to, my_clients_rooms[i]) == 0)
+      msgsnd(my_clients[i], &word, sizeof(word) - sizeof(long), 0);printf("x\n");
+  }
+}
+      
 int main(){
   int y=0;
   InitMSGs();
   Register();
-  printf("shared %d\n", shared_id);
+  if(fork() == 0)
+    while(1)
+      PublicText();
   if(fork() == 0)
     while(1)
       SendServerList();
@@ -351,11 +382,11 @@ int main(){
   if(fork() == 0)
     while(1)
       ChangeUserRoom();
+
   while(y == 0){
-    printf("uregister?\n");
-    scanf("%d", &y);
+   
   }
-  Unregister();
+  //Unregister();
   
   //wait(NULL);
   
